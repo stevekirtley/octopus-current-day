@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Octopus Tariff Checker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA bits -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background: #f5f5f7;
+      color: #111827;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.4rem;
+      margin-bottom: 0.75rem;
+    }
+    h2 {
+      font-size: 1.2rem;
+      margin-top: 0;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+    input, select {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 0.45rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
+      font-size: 0.9rem;
+      margin-bottom: 0.7rem;
+    }
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-right: 0.5rem;
+    }
+    button.primary {
+      background: #1d4ed8;
+      color: white;
+    }
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
+    #output ul {
+      padding-left: 1.2rem;
+    }
+    #output li {
+      margin-bottom: 0.2rem;
+    }
+    #output pre {
+      white-space: pre-wrap;
+      font-size: 0.85rem;
+      background: #f9fafb;
+      padding: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .highlight {
+      font-weight: 700;
+    }
+    .small {
+      font-size: 0.8rem;
+      color: #6b7280;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Octopus Tariff Checker</h1>
+
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <label for="apiKey">Octopus API key</label>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="sk_live_..." />
+      </div>
+      <div>
+        <label for="accountNumber">Account number</label>
+        <input id="accountNumber" type="text" autocomplete="off" placeholder="A-12345678" />
+      </div>
+    </div>
+
+    <label for="deviceId">Mini device ID</label>
+    <input id="deviceId" type="text" autocomplete="off" placeholder="98-B1-77-FF-FF-01-FF-31" />
+
+    <button id="discoverDevice" class="secondary">Discover device IDs from account</button>
+    <div id="deviceInfo" class="small"></div>
+
+    <label for="dno">DNO region (Agile suffix)</label>
+    <select id="dno">
+      <option value="A">A – Eastern</option>
+      <option value="B">B – East Midlands</option>
+      <option value="C">C – London</option>
+      <option value="D">D – Merseyside &amp; N. Wales</option>
+      <option value="E">E – West Midlands</option>
+      <option value="F">F – North East</option>
+      <option value="G">G – North West</option>
+      <option value="H">H – Southern</option>
+      <option value="J">J – South Eastern</option>
+      <option value="K">K – South Wales</option>
+      <option value="L">L – South Western</option>
+      <option value="M">M – Yorkshire</option>
+      <option value="N">N – South Scotland</option>
+      <option value="P">P – North Scotland</option>
+    </select>
+
+    <button id="run" class="primary">Compare today (Go vs Agile)</button>
+    <div id="status" class="small"></div>
+  </div>
+
+  <div id="output" class="card"></div>
+
+  <div class="card small">
+    <strong>Notes</strong><br>
+    • All prices assume Octopus Go: 8.5p/kWh between 00:30–05:30, 31.42p/kWh otherwise.<br>
+    • Agile product assumed: AGILE-24-10-01.<br>
+    • Standing charges are ignored. This is a personal “what if” tool; API key is stored only in this browser (localStorage).
+  </div>
+</main>
+
+<script>
+  const AGILE_PRODUCT_CODE = 'AGILE-24-10-01';
+  const GRAPHQL_URL = 'https://api.octopus.energy/v1/graphql/';
+  const GO_OFFPEAK_P = 8.50;
+  const GO_PEAK_P = 31.42;
+
+  const apiKeyInput = document.getElementById('apiKey');
+  const accountInput = document.getElementById('accountNumber');
+  const deviceInput = document.getElementById('deviceId');
+  const dnoSelect = document.getElementById('dno');
+  const discoverBtn = document.getElementById('discoverDevice');
+  const runBtn = document.getElementById('run');
+  const statusEl = document.getElementById('status');
+  const outputEl = document.getElementById('output');
+  const deviceInfoEl = document.getElementById('deviceInfo');
+
+  // Load saved config
+  (function loadConfig() {
+    try {
+      const cfg = JSON.parse(localStorage.getItem('octopusTariffConfig') || '{}');
+      if (cfg.apiKey) apiKeyInput.value = cfg.apiKey;
+      if (cfg.accountNumber) accountInput.value = cfg.accountNumber;
+      if (cfg.deviceId) deviceInput.value = cfg.deviceId;
+      if (cfg.dno) dnoSelect.value = cfg.dno;
+    } catch (e) {}
+  })();
+
+  function saveConfig() {
+    const cfg = {
+      apiKey: apiKeyInput.value.trim(),
+      accountNumber: accountInput.value.trim(),
+      deviceId: deviceInput.value.trim(),
+      dno: dnoSelect.value
+    };
+    localStorage.setItem('octopusTariffConfig', JSON.stringify(cfg));
+  }
+
+  function showStatus(msg) {
+    statusEl.textContent = msg;
+  }
+
+  async function graphqlRequest(query, variables, jwtToken) {
+    const res = await fetch(GRAPHQL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(jwtToken ? { 'Authorization': 'JWT ' + jwtToken } : {})
+      },
+      body: JSON.stringify({ query, variables })
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('GraphQL HTTP ' + res.status + ': ' + text);
+    }
+    const data = await res.json();
+    if (data.errors && data.errors.length) {
+      throw new Error('GraphQL error: ' + JSON.stringify(data.errors));
+    }
+    return data.data;
+  }
+
+  async function obtainKrakenToken(apiKey) {
+    const query = `
+      mutation obtainKrakenToken($input: ObtainJSONWebTokenInput!) {
+        obtainKrakenToken(input: $input) {
+          token
+        }
+      }
+    `;
+    const data = await graphqlRequest(query, { input: { APIKey: apiKey } }, null);
+    const token = data?.obtainKrakenToken?.token;
+    if (!token) throw new Error('No token returned');
+    return token;
+  }
+
+  async function discoverDeviceIds(accountNumber, jwtToken) {
+    const query = `
+      query MyDevices($accountNumber: String!) {
+        account(accountNumber: $accountNumber) {
+          electricityAgreements(active: true) {
+            meterPoint {
+              mpan
+              meters(includeInactive: false) {
+                id
+                serialNumber
+                smartDevices {
+                  deviceId
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+    const data = await graphqlRequest(query, { accountNumber }, jwtToken);
+    const devices = [];
+    const agreements = data?.account?.electricityAgreements || [];
+    agreements.forEach(agr => {
+      const mp = agr.meterPoint;
+      if (!mp) return;
+      const mpan = mp.mpan;
+      (mp.meters || []).forEach(meter => {
+        const serial = meter.serialNumber;
+        (meter.smartDevices || []).forEach(sd => {
+          if (sd.deviceId) {
+            devices.push({ mpan, serial, deviceId: sd.deviceId });
+          }
+        });
+      });
+    });
+    return devices;
+  }
+
+  function renderDeviceSelector(devices) {
+    if (!devices.length) {
+      deviceInfoEl.textContent = 'No smart devices found for this account.';
+      return;
+    }
+    const select = document.createElement('select');
+    select.style.marginTop = '0.4rem';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = `${d.serial} (${d.mpan})`;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', e => {
+      deviceInput.value = e.target.value;
+      saveConfig();
+    });
+
+    deviceInfoEl.innerHTML = 'Select device:';
+    deviceInfoEl.appendChild(document.createElement('br'));
+    deviceInfoEl.appendChild(select);
+
+    // Auto-fill if only one
+    if (devices.length === 1) {
+      deviceInput.value = devices[0].deviceId;
+      saveConfig();
+    }
+  }
+
+  async function fetchMiniTelemetry(jwtToken, deviceId) {
+    const now = new Date();
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 0);
+
+    const fmt = d => d.toISOString().replace('.000Z', '+00:00');
+    const startStr = fmt(start);
+    const endStr = fmt(end);
+
+    const query = `
+      query Telemetry($deviceId: String!, $start: DateTime!, $end: DateTime!, $grouping: TelemetryGrouping!) {
+        smartMeterTelemetry(
+          deviceId: $deviceId,
+          start: $start,
+          end: $end,
+          grouping: $grouping
+        ) {
+          readAt
+          consumptionDelta
+          costDeltaWithTax
+        }
+      }
+    `;
+
+    const data = await graphqlRequest(
+      query,
+      { deviceId, start: startStr, end: endStr, grouping: 'HALF_HOURLY' },
+      jwtToken
+    );
+
+    return data.smartMeterTelemetry || [];
+  }
+
+  async function fetchAgileRates(dnoLetter) {
+    const base = `https://api.octopus.energy/v1/products/${AGILE_PRODUCT_CODE}/electricity-tariffs/E-1R-${AGILE_PRODUCT_CODE}-${dnoLetter}/standard-unit-rates/`;
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 0);
+
+    const toUtcZ = d => {
+      const iso = d.toISOString();
+      return iso.replace('.000Z', 'Z');
+    };
+
+    const url = `${base}?${new URLSearchParams({
+      period_from: toUtcZ(start),
+      period_to: toUtcZ(end),
+      page_size: '1500'
+    }).toString()}`;
+
+    const res = await fetch(url);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('Agile HTTP ' + res.status + ': ' + text);
+    }
+    const json = await res.json();
+    const results = json.results || [];
+    const lookup = {};
+    results.forEach(r => {
+      if (r.valid_from && typeof r.value_inc_vat === 'number') {
+        lookup[r.valid_from] = r.value_inc_vat; // pence per kWh
+      }
+    });
+    return lookup;
+  }
+
+function calculateComparison(telemetryRows, agileLookup) {
+  let totalActualP = 0;
+  let totalGoP = 0;
+  let totalAgileP = 0;
+  let totalKWh = 0;
+
+  telemetryRows.forEach(row => {
+    const readAtStr = row.readAt;
+
+    const deltaWh = Number(row.consumptionDelta) || 0;     // Wh
+    const costDeltaP = Number(row.costDeltaWithTax) || 0;  // pence
+
+    const kWh = deltaWh / 1000.0;
+
+    const date = new Date(readAtStr); // local time
+    const hour = date.getHours();
+    const minute = date.getMinutes();
+
+    const isOffPeak =
+      (hour > 0 && hour < 5) ||
+      (hour === 0 && minute >= 30) ||
+      (hour === 5 && minute === 0);
+
+    const goRateP = isOffPeak ? GO_OFFPEAK_P : GO_PEAK_P;
+    const goCostP = kWh * goRateP;
+
+    const utcIso = date.toISOString().replace('.000Z', 'Z');
+    const agileRateP = agileLookup[utcIso] || 0;
+    const agileCostP = kWh * agileRateP;
+
+    totalActualP += costDeltaP;
+    totalGoP += goCostP;
+    totalAgileP += agileCostP;
+    totalKWh += kWh;
+  });
+
+  return {
+    kWh: totalKWh,
+    actualGBP: totalActualP / 100.0,
+    goGBP: totalGoP / 100.0,
+    agileGBP: totalAgileP / 100.0
+  };
+}
+
+  discoverBtn.addEventListener('click', async () => {
+    try {
+      saveConfig();
+      const apiKey = apiKeyInput.value.trim();
+      const accountNumber = accountInput.value.trim();
+      if (!apiKey || !accountNumber) {
+        alert('Please enter API key and account number first.');
+        return;
+      }
+      discoverBtn.disabled = true;
+      showStatus('Obtaining token & discovering devices...');
+      const token = await obtainKrakenToken(apiKey);
+      const devices = await discoverDeviceIds(accountNumber, token);
+      renderDeviceSelector(devices);
+      showStatus('Device discovery complete.');
+    } catch (err) {
+      console.error(err);
+      showStatus('Error: ' + err.message);
+    } finally {
+      discoverBtn.disabled = false;
+    }
+  });
+
+  runBtn.addEventListener('click', async () => {
+    try {
+      saveConfig();
+      const apiKey = apiKeyInput.value.trim();
+      const accountNumber = accountInput.value.trim();
+      const deviceId = deviceInput.value.trim();
+      const dno = dnoSelect.value;
+
+      if (!apiKey || !accountNumber || !deviceId) {
+        alert('Please enter API key, account number and device ID.');
+        return;
+      }
+
+      runBtn.disabled = true;
+      outputEl.innerHTML = '';
+      showStatus('Getting token, usage & prices...');
+
+      const token = await obtainKrakenToken(apiKey);
+      const telemetry = await fetchMiniTelemetry(token, deviceId);
+      showStatus(`Got ${telemetry.length} telemetry rows. Fetching Agile prices...`);
+
+      const agileLookup = await fetchAgileRates(dno);
+      if (!Object.keys(agileLookup).length) {
+        showStatus('No Agile rates returned for today. Agile comparison will be zero.');
+      }
+
+      const { kWh, actualGBP, goGBP, agileGBP } =
+        calculateComparison(telemetry, agileLookup);
+
+      let winnerLabel = 'Your current tariff';
+      const min = Math.min(actualGBP, goGBP, agileGBP);
+      if (min === goGBP) {
+        winnerLabel = 'Octopus Go';
+      } else if (min === agileGBP) {
+        winnerLabel = 'Octopus Agile';
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      outputEl.innerHTML = `
+        <h2>Comparison for ${todayStr}</h2>
+        <p>Energy used today: <span class="highlight">${kWh.toFixed(3)} kWh</span></p>
+        <ul>
+          <li>Actual: £${actualGBP.toFixed(2)}</li>
+          <li>Go (8.5p 00:30–05:30, 31.42p rest): £${goGBP.toFixed(2)}</li>
+          <li>Agile (${AGILE_PRODUCT_CODE}, region ${dno}): £${agileGBP.toFixed(2)}</li>
+        </ul>
+        <p><strong>Cheapest today: ${winnerLabel}</strong></p>
+        <p class="small">Standing charges ignored in all cases.</p>
+      `;
+      showStatus('Done.');
+    } catch (err) {
+      console.error(err);
+      showStatus('Error: ' + err.message);
+      outputEl.innerHTML = '';
+    } finally {
+      runBtn.disabled = false;
+    }
+  });
+
+  // Minimal service worker registration
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
