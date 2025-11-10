@@ -1,7 +1,7 @@
 {
   "name": "Octopus Tariff Checker",
-  "short_name": "Octopus",
-  "start_url": "/",
+  "short_name": "Octopus Checker",
+  "start_url": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0b8de3",
