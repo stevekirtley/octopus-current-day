@@ -61,6 +61,7 @@
       font-weight: 600;
       cursor: pointer;
       margin-right: 0.5rem;
+      margin-top: 0.5rem;
     }
     button.primary {
       background: #1d4ed8;
@@ -144,6 +145,7 @@
     </select>
 
     <button id="run" class="primary">Compare today (Go vs Agile)</button>
+    <button id="checkGaps" class="secondary">Check last 30 days for gaps</button>
     <div id="status" class="small"></div>
   </div>
 
@@ -169,9 +171,12 @@
   const dnoSelect = document.getElementById('dno');
   const discoverBtn = document.getElementById('discoverDevice');
   const runBtn = document.getElementById('run');
+  const checkGapsBtn = document.getElementById('checkGaps');
   const statusEl = document.getElementById('status');
   const outputEl = document.getElementById('output');
   const deviceInfoEl = document.getElementById('deviceInfo');
+
+  const deviceMetaById = {}; // deviceId -> { mpan, serial }
 
   // Load saved config
   (function loadConfig() {
@@ -275,6 +280,12 @@
       deviceInfoEl.textContent = 'No smart devices found for this account.';
       return;
     }
+
+    // store metadata for later (gap check)
+    devices.forEach(d => {
+      deviceMetaById[d.deviceId] = { mpan: d.mpan, serial: d.serial };
+    });
+
     const select = document.createElement('select');
     select.style.marginTop = '0.4rem';
     devices.forEach(d => {
@@ -292,7 +303,6 @@
     deviceInfoEl.appendChild(document.createElement('br'));
     deviceInfoEl.appendChild(select);
 
-    // Auto-fill if only one
     if (devices.length === 1) {
       deviceInput.value = devices[0].deviceId;
       saveConfig();
@@ -364,55 +374,120 @@
     const lookup = {};
     results.forEach(r => {
       if (r.valid_from && typeof r.value_inc_vat === 'number') {
-        lookup[r.valid_from] = r.value_inc_vat; // pence per kWh
+        lookup[r.valid_from] = r.value_inc_vat;
       }
     });
     return lookup;
   }
 
-function calculateComparison(telemetryRows, agileLookup) {
-  let totalActualP = 0;
-  let totalGoP = 0;
-  let totalAgileP = 0;
-  let totalKWh = 0;
+  async function fetchConsumptionLast30Days(apiKey, mpan, serial) {
+    const now = new Date();
 
-  telemetryRows.forEach(row => {
-    const readAtStr = row.readAt;
+    const end = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - 1,
+      23, 59, 59, 0
+    ));
 
-    const deltaWh = Number(row.consumptionDelta) || 0;     // Wh
-    const costDeltaP = Number(row.costDeltaWithTax) || 0;  // pence
+    const start = new Date(Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate() - 29,
+      0, 0, 0, 0
+    ));
 
-    const kWh = deltaWh / 1000.0;
+    const toUtcZ = d => d.toISOString().replace('.000Z', 'Z');
 
-    const date = new Date(readAtStr); // local time
-    const hour = date.getHours();
-    const minute = date.getMinutes();
+    const url = `https://api.octopus.energy/v1/electricity-meter-points/${mpan}/meters/${serial}/consumption/?` +
+      new URLSearchParams({
+        period_from: toUtcZ(start),
+        period_to:   toUtcZ(end),
+        page_size:   '5000',
+        order_by:    'period'
+      }).toString();
 
-    const isOffPeak =
-      (hour > 0 && hour < 5) ||
-      (hour === 0 && minute >= 30) ||
-      (hour === 5 && minute === 0);
+    const res = await fetch(url, {
+      headers: {
+        'Authorization': 'Basic ' + btoa(apiKey + ':')
+      }
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error('Consumption HTTP ' + res.status + ': ' + text);
+    }
+    const json = await res.json();
+    return { results: json.results || [], start, end };
+  }
 
-    const goRateP = isOffPeak ? GO_OFFPEAK_P : GO_PEAK_P;
-    const goCostP = kWh * goRateP;
+  function detectDayGaps(results, startDate, endDate) {
+    const dayCounts = {};
+    results.forEach(r => {
+      const s = r.interval_start;
+      if (!s) return;
+      const dayKey = s.slice(0, 10);
+      dayCounts[dayKey] = (dayCounts[dayKey] || 0) + 1;
+    });
 
-    const utcIso = date.toISOString().replace('.000Z', 'Z');
-    const agileRateP = agileLookup[utcIso] || 0;
-    const agileCostP = kWh * agileRateP;
+    const gaps = [];
+    let d = new Date(startDate.getTime());
+    while (d <= endDate) {
+      const key = d.toISOString().slice(0, 10);
+      const count = dayCounts[key] || 0;
+      const expected = 48;
+      if (count === 0) {
+        gaps.push({ date: key, type: 'none', missing: expected, got: 0 });
+      } else if (count < expected) {
+        gaps.push({ date: key, type: 'partial', missing: expected - count, got: count });
+      }
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return gaps;
+  }
 
-    totalActualP += costDeltaP;
-    totalGoP += goCostP;
-    totalAgileP += agileCostP;
-    totalKWh += kWh;
-  });
+  function calculateComparison(telemetryRows, agileLookup) {
+    let totalActualP = 0;
+    let totalGoP = 0;
+    let totalAgileP = 0;
+    let totalKWh = 0;
 
-  return {
-    kWh: totalKWh,
-    actualGBP: totalActualP / 100.0,
-    goGBP: totalGoP / 100.0,
-    agileGBP: totalAgileP / 100.0
-  };
-}
+    telemetryRows.forEach(row => {
+      const readAtStr = row.readAt;
+
+      const deltaWh    = Number(row.consumptionDelta)    || 0;
+      const costDeltaP = Number(row.costDeltaWithTax)    || 0;
+
+      const kWh = deltaWh / 1000.0;
+
+      const date = new Date(readAtStr);
+      const hour = date.getHours();
+      const minute = date.getMinutes();
+
+      const isOffPeak =
+        (hour > 0 && hour < 5) ||
+        (hour === 0 && minute >= 30) ||
+        (hour === 5 && minute === 0);
+
+      const goRateP = isOffPeak ? GO_OFFPEAK_P : GO_PEAK_P;
+      const goCostP = kWh * goRateP;
+
+      const utcIso = date.toISOString().replace('.000Z', 'Z');
+      const agileRateP = agileLookup[utcIso] || 0;
+      const agileCostP = kWh * agileRateP;
+
+      totalActualP += costDeltaP;
+      totalGoP += goCostP;
+      totalAgileP += agileCostP;
+      totalKWh += kWh;
+    });
+
+    return {
+      kWh: totalKWh,
+      actualGBP: totalActualP / 100.0,
+      goGBP: totalGoP / 100.0,
+      agileGBP: totalAgileP / 100.0
+    };
+  }
 
   discoverBtn.addEventListener('click', async () => {
     try {
@@ -497,7 +572,58 @@ function calculateComparison(telemetryRows, agileLookup) {
     }
   });
 
-  // Minimal service worker registration
+  checkGapsBtn.addEventListener('click', async () => {
+    try {
+      saveConfig();
+      const apiKey = apiKeyInput.value.trim();
+      const deviceId = deviceInput.value.trim();
+      if (!apiKey || !deviceId) {
+        alert('Please enter API key and device ID (and run device discovery if needed).');
+        return;
+      }
+      const meta = deviceMetaById[deviceId];
+      if (!meta) {
+        showStatus('Please click "Discover device IDs from account" first so we know MPAN and meter serial.');
+        return;
+      }
+
+      checkGapsBtn.disabled = true;
+      outputEl.innerHTML = '';
+      showStatus('Checking last 30 days for gaps...');
+
+      const { results, start, end } =
+        await fetchConsumptionLast30Days(apiKey, meta.mpan, meta.serial);
+
+      const gaps = detectDayGaps(results, start, end);
+
+      const fromStr = start.toISOString().slice(0, 10);
+      const toStr   = end.toISOString().slice(0, 10);
+
+      if (!gaps.length) {
+        outputEl.innerHTML = `
+          <h2>Data gaps (last 30 days)</h2>
+          <p>No gaps detected between ${fromStr} and ${toStr} (all days have 48 readings).</p>
+        `;
+      } else {
+        const lines = gaps.map(g =>
+          `${g.date}: ${g.type === 'none' ? 'NO DATA' : 'Missing ' + g.missing + ' intervals (got ' + g.got + ')'}`);
+        outputEl.innerHTML = `
+          <h2>Data gaps (last 30 days)</h2>
+          <p>Checked ${fromStr} → ${toStr}.</p>
+          <p>Found ${gaps.length} day(s) with missing data:</p>
+          <pre>${lines.join('\n')}</pre>
+        `;
+      }
+      showStatus('Gap check complete.');
+    } catch (err) {
+      console.error(err);
+      showStatus('Error: ' + err.message);
+      outputEl.innerHTML = '';
+    } finally {
+      checkGapsBtn.disabled = false;
+    }
+  });
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
