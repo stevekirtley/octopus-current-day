@@ -1,164 +1,3 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Octopus Tariff Checker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA bits -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
-
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      margin: 0;
-      padding: 1rem;
-      background: #f5f5f7;
-      color: #111827;
-    }
-    main {
-      max-width: 640px;
-      margin: 0 auto;
-    }
-    h1 {
-      font-size: 1.4rem;
-      margin-bottom: 0.75rem;
-    }
-    h2 {
-      font-size: 1.2rem;
-      margin-top: 0;
-    }
-    .card {
-      background: #ffffff;
-      border-radius: 12px;
-      padding: 1rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-      margin-bottom: 1rem;
-    }
-    label {
-      display: block;
-      font-size: 0.85rem;
-      margin-bottom: 0.25rem;
-      font-weight: 600;
-    }
-    input, select {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 0.45rem 0.6rem;
-      border-radius: 8px;
-      border: 1px solid #d1d5db;
-      font-size: 0.9rem;
-      margin-bottom: 0.7rem;
-    }
-    button {
-      border: none;
-      border-radius: 999px;
-      padding: 0.5rem 1rem;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      margin-right: 0.5rem;
-      margin-top: 0.5rem;
-    }
-    button.primary {
-      background: #1d4ed8;
-      color: white;
-    }
-    button.secondary {
-      background: #e5e7eb;
-      color: #111827;
-    }
-    button:disabled {
-      opacity: 0.6;
-      cursor: default;
-    }
-    #output ul {
-      padding-left: 1.2rem;
-    }
-    #output li {
-      margin-bottom: 0.2rem;
-    }
-    #output pre {
-      white-space: pre-wrap;
-      font-size: 0.85rem;
-      background: #f9fafb;
-      padding: 0.5rem;
-      border-radius: 8px;
-      border: 1px solid #e5e7eb;
-    }
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0.75rem;
-    }
-    .highlight {
-      font-weight: 700;
-    }
-    .small {
-      font-size: 0.8rem;
-      color: #6b7280;
-      white-space: pre-wrap;
-    }
-  </style>
-</head>
-<body>
-<main>
-  <h1>Octopus Tariff Checker</h1>
-
-  <div class="card">
-    <div class="grid-2">
-      <div>
-        <label for="apiKey">Octopus API key</label>
-        <input id="apiKey" type="password" autocomplete="off" placeholder="sk_live_..." />
-      </div>
-      <div>
-        <label for="accountNumber">Account number</label>
-        <input id="accountNumber" type="text" autocomplete="off" placeholder="A-12345678" />
-      </div>
-    </div>
-
-    <label for="deviceId">Mini device ID</label>
-    <input id="deviceId" type="text" autocomplete="off" placeholder="98-B1-77-FF-FF-01-FF-31" />
-
-    <button id="discoverDevice" class="secondary">Discover device IDs from account</button>
-    <div id="deviceInfo" class="small"></div>
-
-    <label for="dno">DNO region (Agile suffix)</label>
-    <select id="dno">
-      <option value="A">A – Eastern</option>
-      <option value="B">B – East Midlands</option>
-      <option value="C">C – London</option>
-      <option value="D">D – Merseyside &amp; N. Wales</option>
-      <option value="E">E – West Midlands</option>
-      <option value="F">F – North East</option>
-      <option value="G">G – North West</option>
-      <option value="H">H – Southern</option>
-      <option value="J">J – South Eastern</option>
-      <option value="K">K – South Wales</option>
-      <option value="L">L – South Western</option>
-      <option value="M">M – Yorkshire</option>
-      <option value="N">N – South Scotland</option>
-      <option value="P">P – North Scotland</option>
-    </select>
-
-    <button id="run" class="primary">Compare today (Go vs Agile)</button>
-    <button id="checkGaps" class="secondary">Check last 30 days for gaps</button>
-    <div id="status" class="small"></div>
-  </div>
-
-  <div id="output" class="card"></div>
-
-  <div class="card small">
-    <strong>Notes</strong><br>
-    • All prices assume Octopus Go: 8.5p/kWh between 00:30–05:30, 31.42p/kWh otherwise.<br>
-    • Agile product assumed: AGILE-24-10-01.<br>
-    • Standing charges are ignored. This is a personal “what if” tool; API key is stored only in this browser (localStorage).
-  </div>
-</main>
-
 <script>
   const AGILE_PRODUCT_CODE = 'AGILE-24-10-01';
   const GRAPHQL_URL = 'https://api.octopus.energy/v1/graphql/';
@@ -177,6 +16,7 @@
   const deviceInfoEl = document.getElementById('deviceInfo');
 
   const deviceMetaById = {}; // deviceId -> { mpan, serial }
+  let lastDayIndex = null;   // dateKey -> [interval_start strings]
 
   // Load saved config
   (function loadConfig() {
@@ -380,16 +220,19 @@
     return lookup;
   }
 
+  // Fetch last 30 days of consumption, excluding today and yesterday
   async function fetchConsumptionLast30Days(apiKey, mpan, serial) {
     const now = new Date();
 
+    // end: day before yesterday (so we ignore current + previous day)
     const end = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
-      now.getUTCDate() - 1,
+      now.getUTCDate() - 2,
       23, 59, 59, 0
     ));
 
+    // start: 29 days before end => 30 full days total
     const start = new Date(Date.UTC(
       end.getUTCFullYear(),
       end.getUTCMonth(),
@@ -420,20 +263,25 @@
     return { results: json.results || [], start, end };
   }
 
-  function detectDayGaps(results, startDate, endDate) {
-    const dayCounts = {};
+  // Build index: dateKey -> list of interval_start strings
+  function buildDayIndex(results) {
+    const index = {};
     results.forEach(r => {
       const s = r.interval_start;
       if (!s) return;
       const dayKey = s.slice(0, 10);
-      dayCounts[dayKey] = (dayCounts[dayKey] || 0) + 1;
+      if (!index[dayKey]) index[dayKey] = [];
+      index[dayKey].push(s);
     });
+    return index;
+  }
 
+  function detectDayGaps(dayIndex, startDate, endDate) {
     const gaps = [];
     let d = new Date(startDate.getTime());
     while (d <= endDate) {
       const key = d.toISOString().slice(0, 10);
-      const count = dayCounts[key] || 0;
+      const count = (dayIndex[key] || []).length;
       const expected = 48;
       if (count === 0) {
         gaps.push({ date: key, type: 'none', missing: expected, got: 0 });
@@ -487,6 +335,31 @@
       goGBP: totalGoP / 100.0,
       agileGBP: totalAgileP / 100.0
     };
+  }
+
+  function showDayDetail(dateKey) {
+    if (!lastDayIndex) return;
+    const intervals = (lastDayIndex[dateKey] || []).slice().sort();
+    const expected = [];
+    let d = new Date(dateKey + 'T00:00:00Z');
+    for (let i = 0; i < 48; i++) {
+      expected.push(d.toISOString().replace('.000Z', 'Z'));
+      d = new Date(d.getTime() + 30 * 60 * 1000);
+    }
+    const haveSet = new Set(intervals.map(s => s.replace('.000Z', 'Z')));
+    const missing = expected.filter(s => !haveSet.has(s));
+
+    const detailsText =
+      `Details for ${dateKey} (UTC intervals)\n\n` +
+      `Present intervals (${intervals.length}):\n` +
+      (intervals.length ? intervals.join('\n') : 'None') +
+      `\n\nMissing intervals (${missing.length}):\n` +
+      (missing.length ? missing.join('\n') : 'None');
+
+    const gapDetailsEl = outputEl.querySelector('#gapDetails');
+    if (gapDetailsEl) {
+      gapDetailsEl.textContent = detailsText;
+    }
   }
 
   discoverBtn.addEventListener('click', async () => {
@@ -589,12 +462,16 @@
 
       checkGapsBtn.disabled = true;
       outputEl.innerHTML = '';
-      showStatus('Checking last 30 days for gaps...');
+      lastDayIndex = null;
+      showStatus('Checking last 30 days (excluding today & yesterday) for gaps...');
 
       const { results, start, end } =
         await fetchConsumptionLast30Days(apiKey, meta.mpan, meta.serial);
 
-      const gaps = detectDayGaps(results, start, end);
+      const dayIndex = buildDayIndex(results);
+      lastDayIndex = dayIndex;
+
+      const gaps = detectDayGaps(dayIndex, start, end);
 
       const fromStr = start.toISOString().slice(0, 10);
       const toStr   = end.toISOString().slice(0, 10);
@@ -603,15 +480,22 @@
         outputEl.innerHTML = `
           <h2>Data gaps (last 30 days)</h2>
           <p>No gaps detected between ${fromStr} and ${toStr} (all days have 48 readings).</p>
+          <div id="gapDetails" class="small"></div>
         `;
       } else {
         const lines = gaps.map(g =>
-          `${g.date}: ${g.type === 'none' ? 'NO DATA' : 'Missing ' + g.missing + ' intervals (got ' + g.got + ')'}`);
+          `<div>${g.date}: ${
+            g.type === 'none'
+              ? 'NO DATA'
+              : 'Missing ' + g.missing + ' intervals (got ' + g.got + ')'
+          } <button class="gap-detail" data-date="${g.date}">Details</button></div>`
+        );
         outputEl.innerHTML = `
           <h2>Data gaps (last 30 days)</h2>
-          <p>Checked ${fromStr} → ${toStr}.</p>
+          <p>Checked ${fromStr} → ${toStr} (excluding today & yesterday).</p>
           <p>Found ${gaps.length} day(s) with missing data:</p>
-          <pre>${lines.join('\n')}</pre>
+          ${lines.join('')}
+          <div id="gapDetails" class="small" style="margin-top:0.75rem;"></div>
         `;
       }
       showStatus('Gap check complete.');
@@ -624,9 +508,15 @@
     }
   });
 
+  // Delegate clicks on "Details" buttons inside the output card
+  outputEl.addEventListener('click', e => {
+    const btn = e.target.closest('.gap-detail');
+    if (!btn) return;
+    const date = btn.dataset.date;
+    showDayDetail(date);
+  });
+
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('service-worker.js').catch(() => {});
   }
 </script>
-</body>
-</html>
