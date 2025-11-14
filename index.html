@@ -169,6 +169,27 @@
     • Agile product assumed: AGILE-24-10-01.<br>
     • Standing charges are ignored. This is a personal “what if” tool; API key is stored only in this browser (localStorage).
   </div>
+
+  <!-- GivEnergy section – hidden by default, feature-flagged via URL/localStorage -->
+  <div class="card" id="geSection" style="display:none;">
+    <h2>GivEnergy · Octopus Go helper</h2>
+    <p class="small">
+      Use this section to reset your GivEnergy Gen 3 Hybrid inverter to Octopus Go-style
+      charge &amp; export slots via a secure relay on apirelay.sitetest.org.uk. Only the
+      <strong>Timed Charge</strong> and <strong>Timed Export</strong> presets are modified.
+    </p>
+
+    <label for="geSerial">GivEnergy inverter serial</label>
+    <input id="geSerial" type="text" autocomplete="off" placeholder="e.g. FD2417G457" />
+
+    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+      <button id="geSave" class="secondary" type="button">Save serial</button>
+      <button id="geReset" class="primary" type="button">Reset to Go slots</button>
+    </div>
+
+    <div id="geStatus" class="small" style="margin-top: 0.5rem;"></div>
+    <div id="geSlots" class="small" style="margin-top: 0.5rem;"></div>
+  </div>
 </main>
 
 <script>
@@ -755,6 +776,183 @@ document.addEventListener('DOMContentLoaded', () => {
     const date = btn.dataset.date;
     showDayDetail(date);
   });
+
+  // --- Feature flag for GivEnergy section: URL param or localStorage ---
+  const geSection = document.getElementById('geSection');
+
+  function geIsEnabled() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const flag = params.get('ge') || params.get('givenergy');
+
+      // If URL param present (e.g. ?ge=1), remember it for this device
+      if (flag) {
+        localStorage.setItem('ge_enabled', '1');
+        return true;
+      }
+
+      // Otherwise, fall back to whatever we previously stored
+      return localStorage.getItem('ge_enabled') === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  if (geSection && geIsEnabled()) {
+    geSection.style.display = 'block';
+  }
+
+  // === GivEnergy Octopus Go helper ===
+  const geSerialInput = document.getElementById('geSerial');
+  const geSaveBtn = document.getElementById('geSave');
+  const geResetBtn = document.getElementById('geReset');
+  const geStatusEl = document.getElementById('geStatus');
+  const geSlotsEl = document.getElementById('geSlots');
+  const PROXY_URL = "https://apirelay.sitetest.org.uk/givenergy-proxy.php";
+
+  function geShowStatus(msg, type = "") {
+    if (!geStatusEl) return;
+    geStatusEl.textContent = msg;
+    geStatusEl.className = "small" + (type ? " " + type : "");
+  }
+
+  function geLoadConfig() {
+    try {
+      const serial = localStorage.getItem('ge_inverter_serial') || "";
+      if (serial && geSerialInput) {
+        geSerialInput.value = serial;
+      }
+    } catch (e) {}
+  }
+
+  function geSaveConfig() {
+    if (!geSerialInput) return;
+    localStorage.setItem('ge_inverter_serial', geSerialInput.value.trim());
+    geShowStatus("GivEnergy inverter serial saved.", "ok");
+  }
+
+  function geNormaliseSlots(slots) {
+    if (!slots) return [];
+    if (Array.isArray(slots)) return slots;
+    const out = [];
+    Object.keys(slots).sort().forEach(k => out.push(slots[k]));
+    return out;
+  }
+
+  function geRenderSlots(timedCharge, timedExport) {
+    if (!geSlotsEl) return;
+    const chargeEnabled = timedCharge && timedCharge.enabled;
+    const chargeSlots = geNormaliseSlots(timedCharge && timedCharge.slots);
+    const exportEnabled = timedExport && timedExport.enabled;
+    const exportSlots = geNormaliseSlots(timedExport && timedExport.slots);
+
+    let html = "<strong>Current inverter slots</strong><br>";
+
+    if (!timedCharge && !timedExport) {
+      html += "<em>No data returned yet – check serial or relay.</em>";
+      geSlotsEl.innerHTML = html;
+      return;
+    }
+
+    html += "<br><strong>Timed Charge</strong> (" + (chargeEnabled ? "enabled" : "disabled") + "):<br>";
+    if (!chargeSlots.length) {
+      html += "<em>No charge slots configured.</em><br>";
+    } else {
+      chargeSlots.forEach((slot, idx) => {
+        const st = slot.start_time || "?";
+        const et = slot.end_time || "?";
+        const pl = (slot.percent_limit !== undefined && slot.percent_limit !== null)
+          ? slot.percent_limit + "%"
+          : "n/a";
+        html += "Slot " + idx + ": " + st + " → " + et + " (to " + pl + ")<br>";
+      });
+    }
+
+    html += "<br><strong>Timed Export</strong> (" + (exportEnabled ? "enabled" : "disabled") + "):<br>";
+    if (!exportSlots.length) {
+      html += "<em>No export slots configured.</em>";
+    } else {
+      exportSlots.forEach((slot, idx) => {
+        const st = slot.start_time || "?";
+        const et = slot.end_time || "?";
+        const pl = (slot.percent_limit !== undefined && slot.percent_limit !== null)
+          ? slot.percent_limit + "%"
+          : "n/a";
+        html += "Slot " + idx + ": " + st + " → " + et + " (down to " + pl + ")<br>";
+      });
+    }
+
+    geSlotsEl.innerHTML = html;
+  }
+
+  async function geLoadSlots() {
+    if (!geSerialInput) return;
+    const serial = geSerialInput.value.trim();
+    if (!serial) return;
+
+    try {
+      const res = await fetch(PROXY_URL + "?action=slots&serial=" + encodeURIComponent(serial));
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const data = await res.json();
+      const timedCharge = data.timed_charge && data.timed_charge.data;
+      const timedExport = data.timed_export && data.timed_export.data;
+      geRenderSlots(timedCharge, timedExport);
+    } catch (err) {
+      console.error("GivEnergy slots error", err);
+      if (geSlotsEl) {
+        geSlotsEl.innerHTML = "<strong>Current inverter slots</strong><br><em>Could not load presets: " +
+          (err && err.message ? err.message : "Unknown error") + "</em>";
+      }
+    }
+  }
+
+  async function geResetGo() {
+    if (!geSerialInput) return;
+    const serial = geSerialInput.value.trim();
+    if (!serial) {
+      geShowStatus("Please enter GivEnergy inverter serial first.", "error");
+      return;
+    }
+
+    geSaveConfig();
+
+    geResetBtn.disabled = true;
+    geSaveBtn.disabled = true;
+    geShowStatus("Sending Timed Charge / Timed Export presets via relay…");
+
+    try {
+      const res = await fetch(PROXY_URL + "?action=reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ serial })
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      await res.json();
+      geShowStatus("Done! Timed Charge and Timed Export updated to Octopus Go slots.", "ok");
+      geLoadSlots();
+    } catch (err) {
+      console.error("GivEnergy reset error", err);
+      geShowStatus("Error: " + err.message, "error");
+    } finally {
+      geResetBtn.disabled = false;
+      geSaveBtn.disabled = false;
+    }
+  }
+
+  if (geSaveBtn) {
+    geSaveBtn.addEventListener("click", () => {
+      geSaveConfig();
+      geLoadSlots();
+    });
+  }
+  if (geResetBtn) {
+    geResetBtn.addEventListener("click", geResetGo);
+  }
+
+  geLoadConfig();
+  if (geSerialInput && geSerialInput.value.trim()) {
+    geLoadSlots();
+  }
 
   // Register SW (outside try/catch; ignore errors)
   if ('serviceWorker' in navigator) {
