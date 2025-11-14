@@ -496,30 +496,53 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  function showDayDetail(dateKey) {
-    if (!lastDayIndex) return;
-    const intervals = (lastDayIndex[dateKey] || []).slice().sort();
-    const expected = [];
-    let d = new Date(dateKey + 'T00:00:00Z');
-    for (let i = 0; i < 48; i++) {
-      expected.push(d.toISOString().replace('.000Z', 'Z'));
-      d = new Date(d.getTime() + 30 * 60 * 1000);
-    }
-    const haveSet = new Set(intervals.map(s => s.replace('.000Z', 'Z')));
-    const missing = expected.filter(s => !haveSet.has(s));
+ function showDayDetail(dateKey) {
+  if (!lastDayIndex) return;
+  const intervals = (lastDayIndex[dateKey] || []).slice().sort();
+  const gapDetailsEl = outputEl.querySelector('#gapDetails');
+  if (!gapDetailsEl) return;
 
-    const detailsText =
-      `Details for ${dateKey} (UTC intervals)\n\n` +
-      `Present intervals (${intervals.length}):\n` +
-      (intervals.length ? intervals.join('\n') : 'None') +
-      `\n\nMissing intervals (${missing.length}):\n` +
-      (missing.length ? missing.join('\n') : 'None');
+  if (!intervals.length) {
+    gapDetailsEl.textContent = `No data at all for ${dateKey}.`;
+    return;
+  }
 
-    const gapDetailsEl = outputEl.querySelector('#gapDetails');
-    if (gapDetailsEl) {
-      gapDetailsEl.textContent = detailsText;
+  // Infer offset suffix from the first interval, e.g. "+01:00" or "Z"
+  const first = intervals[0];
+  let offset = 'Z';
+  const m = first.match(/([+-]\d{2}:\d{2}|Z)$/);
+  if (m) offset = m[1];
+
+  // Build expected local-time interval strings for that date with the same offset
+  const expected = [];
+  let hour = 0, minute = 0;
+  for (let i = 0; i < 48; i++) {
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    expected.push(`${dateKey}T${hh}:${mm}:00${offset}`);
+    minute += 30;
+    if (minute === 60) {
+      minute = 0;
+      hour += 1;
     }
   }
+
+  const haveSet = new Set(intervals);
+
+  const missing = expected.filter(s => !haveSet.has(s));
+
+  const detailsText =
+    `Details for ${dateKey} (local time ${offset})\n\n` +
+    `Present intervals (${intervals.length}):\n` +
+    (intervals.length ? intervals.join('\n') : 'None') +
+    `\n\nExpected intervals (${expected.length}):\n` +
+    expected.join('\n') +
+    `\n\nMissing intervals (${missing.length}):\n` +
+    (missing.length ? missing.join('\n') : 'None');
+
+  gapDetailsEl.textContent = detailsText;
+}
+
 
   discoverBtn.addEventListener('click', async () => {
     try {
