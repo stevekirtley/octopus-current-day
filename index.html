@@ -15,141 +15,92 @@
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       margin: 0;
-      min-height: 100vh;
-      background: #020617;
-      color: #e5e7eb;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 16px;
+      padding: 1rem;
+      background: #f5f5f7;
+      color: #111827;
     }
-
     main {
-      width: 100%;
-      max-width: 480px;
+      max-width: 640px;
+      margin: 0 auto;
     }
-
     h1 {
-      margin: 0 0 12px;
       font-size: 1.4rem;
-      letter-spacing: 0.03em;
+      margin-bottom: 0.75rem;
     }
-
     h2 {
-      margin: 0 0 8px;
-      font-size: 1.1rem;
+      font-size: 1.2rem;
+      margin-top: 0;
     }
-
     .card {
-      background: #020617;
-      border-radius: 18px;
-      border: 1px solid #1f2937;
-      box-shadow: 0 18px 50px rgba(0,0,0,0.7);
-      padding: 16px 14px 14px;
-      margin-bottom: 14px;
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      margin-bottom: 1rem;
     }
-
     label {
       display: block;
-      margin: 6px 0 4px;
       font-size: 0.85rem;
-      color: #9ca3af;
+      margin-bottom: 0.25rem;
+      font-weight: 600;
     }
-
     input, select {
       width: 100%;
       box-sizing: border-box;
-      padding: 8px 10px;
-      border-radius: 10px;
-      border: 1px solid #374151;
-      background: #020617;
-      color: #e5e7eb;
+      padding: 0.45rem 0.6rem;
+      border-radius: 8px;
+      border: 1px solid #d1d5db;
       font-size: 0.9rem;
+      margin-bottom: 0.7rem;
     }
-
-    input:focus, select:focus {
-      outline: 2px solid #22c55e;
-      outline-offset: 1px;
-      border-color: transparent;
-    }
-
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-    }
-
     button {
-      margin-top: 10px;
-      border-radius: 999px;
       border: none;
-      padding: 8px 14px;
+      border-radius: 999px;
+      padding: 0.5rem 1rem;
       font-size: 0.9rem;
-      font-weight: 500;
+      font-weight: 600;
       cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
+      margin-right: 0.5rem;
+      margin-top: 0.5rem;
     }
-
     button.primary {
-      background: #22c55e;
-      color: #022c22;
+      background: #1d4ed8;
+      color: white;
     }
-
     button.secondary {
-      background: #111827;
-      color: #e5e7eb;
-      border: 1px solid #374151;
+      background: #e5e7eb;
+      color: #111827;
     }
-
     button:disabled {
       opacity: 0.6;
       cursor: default;
     }
-
+    #output ul {
+      padding-left: 1.2rem;
+    }
+    #output li {
+      margin-bottom: 0.2rem;
+    }
+    #output pre {
+      white-space: pre-wrap;
+      font-size: 0.85rem;
+      background: #f9fafb;
+      padding: 0.5rem;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0.75rem;
+    }
+    .highlight {
+      font-weight: 700;
+    }
     .small {
       font-size: 0.8rem;
       color: #6b7280;
-      white-space: pre-line;
-    }
-
-    #output {
-      font-size: 0.85rem;
-    }
-
-    .tariff-summary {
-      margin-top: 8px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      background: #020617;
-      border: 1px solid #111827;
-    }
-
-    .tariff-summary strong {
-      color: #e5e7eb;
-    }
-
-    .winner {
-      color: #22c55e;
-      font-weight: 600;
-    }
-
-    .gap-list {
-      margin-top: 10px;
-      max-height: 220px;
-      overflow-y: auto;
-      padding-right: 4px;
-    }
-
-    .gap-list button {
-      width: 100%;
-      justify-content: flex-start;
-    }
-
-    .gap-detail {
-      font-size: 0.8rem;
+      white-space: pre-wrap;
     }
   </style>
 </head>
@@ -189,8 +140,8 @@
       <option value="K">K – South Wales</option>
       <option value="L">L – South Western</option>
       <option value="M">M – Yorkshire</option>
-      <option value="N">N – Scottish Hydro</option>
-      <option value="P">P – Scottish Power</option>
+      <option value="N">N – South Scotland</option>
+      <option value="P">P – North Scotland</option>
     </select>
 
     <button id="run" class="primary">Compare today (Go vs Agile)</button>
@@ -205,27 +156,6 @@
     • All prices assume Octopus Go: 8.5p/kWh between 00:30–05:30, 31.42p/kWh otherwise.<br>
     • Agile product assumed: AGILE-24-10-01.<br>
     • Standing charges are ignored. This is a personal “what if” tool; API key is stored only in this browser (localStorage).
-  </div>
-
-  <!-- GivEnergy section – hidden by default, feature-flagged via URL/localStorage -->
-  <div class="card" id="geSection" style="display:none;">
-    <h2>GivEnergy · Octopus Go helper</h2>
-    <p class="small">
-      Use this section to reset your GivEnergy Gen 3 Hybrid inverter to Octopus Go-style
-      charge &amp; export slots via a secure relay on apirelay.sitetest.org.uk. Only the
-      <strong>Timed Charge</strong> and <strong>Timed Export</strong> presets are modified.
-    </p>
-
-    <label for="geSerial">GivEnergy inverter serial</label>
-    <input id="geSerial" type="text" autocomplete="off" placeholder="e.g. FD2417G457" />
-
-    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-      <button id="geSave" class="secondary" type="button">Save serial</button>
-      <button id="geReset" class="primary" type="button">Reset to Go slots</button>
-    </div>
-
-    <div id="geStatus" class="small" style="margin-top: 0.5rem;"></div>
-    <div id="geSlots" class="small" style="margin-top: 0.5rem;"></div>
   </div>
 </main>
 
@@ -280,7 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...(jwtToken ? { Authorization: `JWT ${jwtToken}` } : {})
+        ...(jwtToken ? { 'Authorization': 'JWT ' + jwtToken } : {})
       },
       body: JSON.stringify({ query, variables })
     });
@@ -319,10 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
               meters(includeInactive: false) {
                 id
                 serialNumber
-                smartDevices(includeInactive: false) {
-                  id
+                smartDevices {
                   deviceId
-                  deviceType
                 }
               }
             }
@@ -331,20 +259,17 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     `;
     const data = await graphqlRequest(query, { accountNumber }, jwtToken);
-    const agreements = data?.account?.electricityAgreements || [];
     const devices = [];
-    agreements.forEach(a => {
-      const mpan = a.meterPoint?.mpan;
-      (a.meterPoint?.meters || []).forEach(m => {
-        const serial = m.serialNumber;
-        (m.smartDevices || []).forEach(d => {
-          if (d.deviceType === 'OCTOPUS_MINI') {
-            devices.push({
-              deviceId: d.deviceId,
-              id: d.id,
-              mpan,
-              serial
-            });
+    const agreements = data?.account?.electricityAgreements || [];
+    agreements.forEach(agr => {
+      const mp = agr.meterPoint;
+      if (!mp) return;
+      const mpan = mp.mpan;
+      (mp.meters || []).forEach(meter => {
+        const serial = meter.serialNumber;
+        (meter.smartDevices || []).forEach(sd => {
+          if (sd.deviceId) {
+            devices.push({ mpan, serial, deviceId: sd.deviceId });
           }
         });
       });
@@ -352,27 +277,87 @@ document.addEventListener('DOMContentLoaded', () => {
     return devices;
   }
 
-  function toUtcZ(date) {
-    const y = date.getUTCFullYear();
-    const m = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const d = String(date.getUTCDate()).padStart(2, '0');
-    const hh = String(date.getUTCHours()).padStart(2, '0');
-    const mm = String(date.getUTCMinutes()).padStart(2, '0');
-    const ss = String(date.getUTCSeconds()).padStart(2, '0');
-    return `${y}-${m}-${d}T${hh}:${mm}:${ss}Z`;
+  function renderDeviceSelector(devices) {
+    if (!devices.length) {
+      deviceInfoEl.textContent = 'No smart devices found for this account.';
+      return;
+    }
+
+    devices.forEach(d => {
+      deviceMetaById[d.deviceId] = { mpan: d.mpan, serial: d.serial };
+    });
+
+    const select = document.createElement('select');
+    select.style.marginTop = '0.4rem';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = `${d.serial} (${d.mpan})`;
+      select.appendChild(opt);
+    });
+    select.addEventListener('change', e => {
+      deviceInput.value = e.target.value;
+      saveConfig();
+    });
+
+    deviceInfoEl.innerHTML = 'Select device:';
+    deviceInfoEl.appendChild(document.createElement('br'));
+    deviceInfoEl.appendChild(select);
+
+    if (devices.length === 1) {
+      deviceInput.value = devices[0].deviceId;
+      saveConfig();
+    }
   }
 
-  async function fetchAgileRates(dnoSuffix) {
+  async function fetchMiniTelemetry(jwtToken, deviceId) {
     const now = new Date();
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      0, 0, 0, 0
-    ));
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 0);
 
-    const base = `https://api.octopus.energy/v1/products/${AGILE_PRODUCT_CODE}/electricity-tariffs/E-1R-${AGILE_PRODUCT_CODE}-${dnoSuffix}/standard-unit-rates/`;
+    const fmt = d => d.toISOString().replace('.000Z', '+00:00');
+    const startStr = fmt(start);
+    const endStr = fmt(end);
+
+    const query = `
+      query Telemetry($deviceId: String!, $start: DateTime!, $end: DateTime!, $grouping: TelemetryGrouping!) {
+        smartMeterTelemetry(
+          deviceId: $deviceId,
+          start: $start,
+          end: $end,
+          grouping: $grouping
+        ) {
+          readAt
+          consumptionDelta
+          costDeltaWithTax
+        }
+      }
+    `;
+
+    const data = await graphqlRequest(
+      query,
+      { deviceId, start: startStr, end: endStr, grouping: 'HALF_HOURLY' },
+      jwtToken
+    );
+
+    return data.smartMeterTelemetry || [];
+  }
+
+  async function fetchAgileRates(dnoLetter) {
+    const base = `https://api.octopus.energy/v1/products/${AGILE_PRODUCT_CODE}/electricity-tariffs/E-1R-${AGILE_PRODUCT_CODE}-${dnoLetter}/standard-unit-rates/`;
+
+    const today = new Date();
+    const start = new Date(today);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(today);
+    end.setHours(23, 59, 59, 0);
+
+    const toUtcZ = d => {
+      const iso = d.toISOString();
+      return iso.replace('.000Z', 'Z');
+    };
 
     const url = `${base}?${new URLSearchParams({
       period_from: toUtcZ(start),
@@ -403,24 +388,31 @@ document.addEventListener('DOMContentLoaded', () => {
     const end = new Date(Date.UTC(
       now.getUTCFullYear(),
       now.getUTCMonth(),
-      now.getUTCDate() - 1,
+      now.getUTCDate() - 2,
+      23, 59, 59, 0
+    ));
+
+    // start: 29 days before end
+    const start = new Date(Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate() - 29,
       0, 0, 0, 0
     ));
 
-    const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const toUtcZ = d => d.toISOString().replace('.000Z', 'Z');
 
-    const base = `https://api.octopus.energy/v1/electricity-meter-points/${mpan}/meters/${serial}/consumption/`;
-    const params = new URLSearchParams({
-      period_from: toUtcZ(start),
-      period_to: toUtcZ(end),
-      page_size: '2500',
-      group_by: 'half_hour'
-    });
-    const url = `${base}?${params.toString()}`;
+    const url = `https://api.octopus.energy/v1/electricity-meter-points/${mpan}/meters/${serial}/consumption/?` +
+      new URLSearchParams({
+        period_from: toUtcZ(start),
+        period_to:   toUtcZ(end),
+        page_size:   '5000',
+        order_by:    'period'
+      }).toString();
 
     const res = await fetch(url, {
       headers: {
-        Authorization: 'Basic ' + btoa(apiKey + ':')
+        'Authorization': 'Basic ' + btoa(apiKey + ':')
       }
     });
     if (!res.ok) {
@@ -428,245 +420,129 @@ document.addEventListener('DOMContentLoaded', () => {
       throw new Error('Consumption HTTP ' + res.status + ': ' + text);
     }
     const json = await res.json();
-    const results = json.results || [];
-    return { results, start, end };
+    return { results: json.results || [], start, end };
   }
 
-  function buildTodayHalfHours() {
-    const now = new Date();
-    const date = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      0, 0, 0, 0
-    ));
-    const slots = [];
-    for (let i = 0; i < 48; i++) {
-      const from = new Date(date.getTime() + i * 30 * 60 * 1000);
-      const to = new Date(from.getTime() + 30 * 60 * 1000);
-      slots.push({ from, to });
-    }
-    return slots;
-  }
-
-  function formatTimeHM(date) {
-    return date.toTimeString().slice(0, 5);
-  }
-
-  function calculateComparison(telemetry, agileLookup) {
-    let kWh = 0;
-    let actualGBP = 0;
-    let goGBP = 0;
-    let agileGBP = 0;
-
-    telemetry.forEach(slot => {
-      const { from, to, kwh, unitRateP } = slot;
-      kWh += kwh;
-
-      actualGBP += kwh * (unitRateP / 100);
-
-      const hour = from.getHours();
-      const min = from.getMinutes();
-      const inGoWindow = (
-        (hour > 0 || (hour === 0 && min >= 30)) &&
-        (hour < 5 || (hour === 5 && min < 30))
-      );
-      const goRateP = inGoWindow ? GO_OFFPEAK_P : GO_PEAK_P;
-      goGBP += kwh * (goRateP / 100);
-
-      const iso = from.toISOString();
-      let agileRate = agileLookup[iso];
-      if (agileRate == null) {
-        const keys = Object.keys(agileLookup);
-        let closest = null;
-        let minDiff = Infinity;
-        const t = from.getTime();
-        keys.forEach(k => {
-          const ts = Date.parse(k);
-          const diff = Math.abs(ts - t);
-          if (diff < minDiff) {
-            minDiff = diff;
-            closest = k;
-          }
-        });
-        if (closest) agileRate = agileLookup[closest];
-      }
-      if (agileRate != null) {
-        agileGBP += kwh * (agileRate / 100);
-      }
-    });
-
-    return { kWh, actualGBP, goGBP, agileGBP };
-  }
-
-  async function fetchTodayMiniData(apiKey, deviceId) {
-    const now = new Date();
-    const start = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate(),
-      0, 0, 0, 0
-    ));
-    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
-
-    const base = `https://api.octopus.energy/v1/devices/${deviceId}/electricity-consumption/`;
-    const params = new URLSearchParams({
-      period_from: toUtcZ(start),
-      period_to: toUtcZ(end),
-      page_size: '2000',
-      group_by: 'half_hour'
-    });
-    const url = `${base}?${params.toString()}`;
-
-    const res = await fetch(url, {
-      headers: {
-        Authorization: 'Basic ' + btoa(apiKey + ':')
-      }
-    });
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error('Mini HTTP ' + res.status + ': ' + text);
-    }
-    const json = await res.json();
-    const results = json.results || [];
-
-    const slotsByIso = {};
+  function buildDayIndex(results) {
+    const index = {};
     results.forEach(r => {
-      const from = new Date(r.interval_start);
-      const to = new Date(r.interval_end);
-      const kwh = typeof r.consumption === 'number' ? r.consumption : 0;
-      const rateP = typeof r.unit_rate === 'number' ? r.unit_rate : 0;
-      slotsByIso[from.toISOString()] = {
-        from,
-        to,
-        kwh,
-        unitRateP: rateP
-      };
+      const s = r.interval_start;
+      if (!s) return;
+      const dayKey = s.slice(0, 10);
+      if (!index[dayKey]) index[dayKey] = [];
+      index[dayKey].push(s);
     });
-
-    const todaySlots = buildTodayHalfHours();
-    const merged = todaySlots.map(slot => {
-      const iso = slot.from.toISOString();
-      const fromApi = slotsByIso[iso];
-      if (fromApi) return fromApi;
-      return { from: slot.from, to: slot.to, kwh: 0, unitRateP: 0 };
-    });
-
-    return merged;
+    return index;
   }
 
-  function renderResults(telemetry, agileLookup, dno) {
-    const { kWh, actualGBP, goGBP, agileGBP } =
-      calculateComparison(telemetry, agileLookup);
-
-    let winnerLabel = 'Your current tariff';
-    const min = Math.min(actualGBP, goGBP, agileGBP);
-    if (min === goGBP) {
-      winnerLabel = 'Octopus Go';
-    } else if (min === agileGBP) {
-      winnerLabel = 'Octopus Agile';
-    }
-
-    const toMoney = v => '£' + v.toFixed(2);
-
-    let html = '';
-    html += '<div class="tariff-summary">';
-    html += `<strong>Total consumption today:</strong> ${kWh.toFixed(2)} kWh<br><br>`;
-    html += `<strong>Your current tariff:</strong> ${toMoney(actualGBP)}<br>`;
-    html += `<strong>Octopus Go (fixed 8.5p off-peak / 31.42p peak):</strong> ${toMoney(goGBP)}<br>`;
-    html += `<strong>Octopus Agile (${dno}):</strong> ${toMoney(agileGBP)}<br><br>`;
-    html += `<span class="winner">Cheapest today: ${winnerLabel}</span>`;
-    html += '</div>';
-
-    outputEl.innerHTML = html;
-  }
-
-  function indexGapsByDay(results) {
-    const byDay = {};
-    results.forEach(r => {
-      const d = new Date(r.interval_start);
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const key = `${y}-${m}-${day}`;
-      if (!byDay[key]) byDay[key] = [];
-      byDay[key].push(r.interval_start);
-    });
-    return byDay;
-  }
-
-  function renderGapList(byDay, start, end) {
-    const dates = [];
-    const cur = new Date(start.getTime());
-    while (cur < end) {
-      const y = cur.getUTCFullYear();
-      const m = String(cur.getUTCMonth() + 1).padStart(2, '0');
-      const d = String(cur.getUTCDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${d}`);
-      cur.setUTCDate(cur.getUTCDate() + 1);
-    }
-
-    let html = '<div class="gap-list">';
-    dates.forEach(dateKey => {
-      const intervals = byDay[dateKey] || [];
-      if (intervals.length < 48) {
-        html += `<button type="button" class="secondary gap-detail" data-date="${dateKey}">`;
-        html += `${dateKey}: ${intervals.length}/48 half hours present – tap for details`;
-        html += '</button>';
+  function detectDayGaps(dayIndex, startDate, endDate) {
+    const gaps = [];
+    let d = new Date(startDate.getTime());
+    while (d <= endDate) {
+      const key = d.toISOString().slice(0, 10);
+      const count = (dayIndex[key] || []).length;
+      const expected = 48;
+      if (count === 0) {
+        gaps.push({ date: key, type: 'none', missing: expected, got: 0 });
+      } else if (count < expected) {
+        gaps.push({ date: key, type: 'partial', missing: expected - count, got: count });
       }
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    return gaps;
+  }
+
+  function calculateComparison(telemetryRows, agileLookup) {
+    let totalActualP = 0;
+    let totalGoP = 0;
+    let totalAgileP = 0;
+    let totalKWh = 0;
+
+    telemetryRows.forEach(row => {
+      const readAtStr = row.readAt;
+
+      const deltaWh    = Number(row.consumptionDelta)    || 0;
+      const costDeltaP = Number(row.costDeltaWithTax)    || 0;
+
+      const kWh = deltaWh / 1000.0;
+
+      const date = new Date(readAtStr);
+      const hour = date.getHours();
+      const minute = date.getMinutes();
+
+      const isOffPeak =
+        (hour > 0 && hour < 5) ||
+        (hour === 0 && minute >= 30) ||
+        (hour === 5 && minute === 0);
+
+      const goRateP = isOffPeak ? GO_OFFPEAK_P : GO_PEAK_P;
+      const goCostP = kWh * goRateP;
+
+      const utcIso = date.toISOString().replace('.000Z', 'Z');
+      const agileRateP = agileLookup[utcIso] || 0;
+      const agileCostP = kWh * agileRateP;
+
+      totalActualP += costDeltaP;
+      totalGoP += goCostP;
+      totalAgileP += agileCostP;
+      totalKWh += kWh;
     });
-    html += '</div>';
 
-    const extra = document.createElement('div');
-    extra.innerHTML = html + '<div id="gapDetails" class="small" style="margin-top:8px;"></div>';
-    outputEl.appendChild(extra);
+    return {
+      kWh: totalKWh,
+      actualGBP: totalActualP / 100.0,
+      goGBP: totalGoP / 100.0,
+      agileGBP: totalAgileP / 100.0
+    };
   }
 
-  function showDayDetail(dateKey) {
-    if (!lastDayIndex || !lastDayIndex[dateKey]) {
-      return;
-    }
-    const intervals = lastDayIndex[dateKey];
-    const gapDetailsEl = outputEl.querySelector('#gapDetails');
-    if (!gapDetailsEl) return;
+ function showDayDetail(dateKey) {
+  if (!lastDayIndex) return;
+  const intervals = (lastDayIndex[dateKey] || []).slice().sort();
+  const gapDetailsEl = outputEl.querySelector('#gapDetails');
+  if (!gapDetailsEl) return;
 
-    if (!intervals.length) {
-      gapDetailsEl.textContent = `No data at all for ${dateKey}.`;
-      return;
-    }
+  if (!intervals.length) {
+    gapDetailsEl.textContent = `No data at all for ${dateKey}.`;
+    return;
+  }
 
-    const first = intervals[0];
-    let offset = 'Z';
-    const m = first.match(/([+-]\d{2}:\d{2}|Z)$/);
-    if (m) offset = m[1];
+  // Infer offset suffix from the first interval, e.g. "+01:00" or "Z"
+  const first = intervals[0];
+  let offset = 'Z';
+  const m = first.match(/([+-]\d{2}:\d{2}|Z)$/);
+  if (m) offset = m[1];
 
-    const expected = [];
-    let hour = 0, minute = 0;
-    for (let i = 0; i < 48; i++) {
-      const hh = String(hour).padStart(2, '0');
-      const mm = String(minute).padStart(2, '0');
-      expected.push(`${dateKey}T${hh}:${mm}:00${offset}`);
-      minute += 30;
-      if (minute === 60) {
-        minute = 0;
-        hour += 1;
-      }
-    }
-
-    const haveSet = new Set(intervals);
-
-    const missing = expected.filter(x => !haveSet.has(x));
-    if (!missing.length) {
-      gapDetailsEl.textContent = `No gaps found for ${dateKey}.`;
-    } else {
-      let msg = `Missing ${missing.length} of 48 half hours on ${dateKey}:\n`;
-      missing.forEach(x => {
-        const hhmm = x.slice(11, 16);
-        msg += `• ${hhmm}\n`;
-      });
-      gapDetailsEl.textContent = msg;
+  // Build expected local-time interval strings for that date with the same offset
+  const expected = [];
+  let hour = 0, minute = 0;
+  for (let i = 0; i < 48; i++) {
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    expected.push(`${dateKey}T${hh}:${mm}:00${offset}`);
+    minute += 30;
+    if (minute === 60) {
+      minute = 0;
+      hour += 1;
     }
   }
+
+  const haveSet = new Set(intervals);
+
+  const missing = expected.filter(s => !haveSet.has(s));
+
+  const detailsText =
+    `Details for ${dateKey} (local time ${offset})\n\n` +
+    `Present intervals (${intervals.length}):\n` +
+    (intervals.length ? intervals.join('\n') : 'None') +
+    `\n\nExpected intervals (${expected.length}):\n` +
+    expected.join('\n') +
+    `\n\nMissing intervals (${missing.length}):\n` +
+    (missing.length ? missing.join('\n') : 'None');
+
+  gapDetailsEl.textContent = detailsText;
+}
+
 
   discoverBtn.addEventListener('click', async () => {
     try {
@@ -674,35 +550,20 @@ document.addEventListener('DOMContentLoaded', () => {
       const apiKey = apiKeyInput.value.trim();
       const accountNumber = accountInput.value.trim();
       if (!apiKey || !accountNumber) {
-        alert('Please enter API key and account number.');
+        alert('Please enter API key and account number first.');
         return;
       }
-      showStatus('Getting Kraken token...');
-      const jwtToken = await obtainKrakenToken(apiKey);
-      showStatus('Discovering devices for this account...');
-      const devices = await discoverDeviceIds(accountNumber, jwtToken);
-      if (!devices.length) {
-        deviceInfoEl.textContent = 'No Octopus Mini devices found on this account.';
-        return;
-      }
-
-      devices.forEach(d => {
-        deviceMetaById[d.deviceId] = { mpan: d.mpan, serial: d.serial };
-      });
-
-      const first = devices[0];
-      deviceInput.value = first.deviceId;
-
-      let msg = 'Found devices:\n';
-      devices.forEach(d => {
-        msg += `• ${d.deviceId} (MPAN ${d.mpan}, meter ${d.serial})\n`;
-      });
-      deviceInfoEl.textContent = msg;
-      showStatus('Devices discovered.');
+      discoverBtn.disabled = true;
+      showStatus('Obtaining token & discovering devices...');
+      const token = await obtainKrakenToken(apiKey);
+      const devices = await discoverDeviceIds(accountNumber, token);
+      renderDeviceSelector(devices);
+      showStatus('Device discovery complete.');
     } catch (err) {
       console.error(err);
       showStatus('Error: ' + err.message);
-      deviceInfoEl.textContent = '';
+    } finally {
+      discoverBtn.disabled = false;
     }
   });
 
@@ -710,27 +571,52 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       saveConfig();
       const apiKey = apiKeyInput.value.trim();
+      const accountNumber = accountInput.value.trim();
       const deviceId = deviceInput.value.trim();
       const dno = dnoSelect.value;
-      if (!apiKey || !deviceId) {
-        alert('Please enter API key and device ID (and run device discovery if needed).');
+
+      if (!apiKey || !accountNumber || !deviceId) {
+        alert('Please enter API key, account number and device ID.');
         return;
       }
 
       runBtn.disabled = true;
       outputEl.innerHTML = '';
-      showStatus('Fetching today’s half-hourly usage, please wait...');
+      showStatus('Getting token, usage & prices...');
 
-      const [telemetry, agileLookup] = await Promise.all([
-        fetchTodayMiniData(apiKey, deviceId),
-        fetchAgileRates(dno)
-      ]);
+      const token = await obtainKrakenToken(apiKey);
+      const telemetry = await fetchMiniTelemetry(token, deviceId);
+      showStatus(`Got ${telemetry.length} telemetry rows. Fetching Agile prices...`);
 
+      const agileLookup = await fetchAgileRates(dno);
       if (!Object.keys(agileLookup).length) {
         showStatus('No Agile rates returned for today. Agile comparison will be zero.');
       }
 
-      renderResults(telemetry, agileLookup, dno);
+      const { kWh, actualGBP, goGBP, agileGBP } =
+        calculateComparison(telemetry, agileLookup);
+
+      let winnerLabel = 'Your current tariff';
+      const min = Math.min(actualGBP, goGBP, agileGBP);
+      if (min === goGBP) {
+        winnerLabel = 'Octopus Go';
+      } else if (min === agileGBP) {
+        winnerLabel = 'Octopus Agile';
+      }
+
+      const todayStr = new Date().toISOString().slice(0, 10);
+
+      outputEl.innerHTML = `
+        <h2>Comparison for ${todayStr}</h2>
+        <p>Energy used today: <span class="highlight">${kWh.toFixed(3)} kWh</span></p>
+        <ul>
+          <li>Actual: £${actualGBP.toFixed(2)}</li>
+          <li>Go (8.5p 00:30–05:30, 31.42p rest): £${goGBP.toFixed(2)}</li>
+          <li>Agile (${AGILE_PRODUCT_CODE}, region ${dno}): £${agileGBP.toFixed(2)}</li>
+        </ul>
+        <p><strong>Cheapest today: ${winnerLabel}</strong></p>
+        <p class="small">Standing charges ignored in all cases.</p>
+      `;
       showStatus('Done.');
     } catch (err) {
       console.error(err);
@@ -764,11 +650,37 @@ document.addEventListener('DOMContentLoaded', () => {
       const { results, start, end } =
         await fetchConsumptionLast30Days(apiKey, meta.mpan, meta.serial);
 
-      const byDay = indexGapsByDay(results);
-      lastDayIndex = byDay;
+      const dayIndex = buildDayIndex(results);
+      lastDayIndex = dayIndex;
 
-      renderGapList(byDay, start, end);
-      showStatus('Done.');
+      const gaps = detectDayGaps(dayIndex, start, end);
+
+      const fromStr = start.toISOString().slice(0, 10);
+      const toStr   = end.toISOString().slice(0, 10);
+
+      if (!gaps.length) {
+        outputEl.innerHTML = `
+          <h2>Data gaps (last 30 days)</h2>
+          <p>No gaps detected between ${fromStr} and ${toStr} (all days have 48 readings).</p>
+          <div id="gapDetails" class="small"></div>
+        `;
+      } else {
+        const lines = gaps.map(g =>
+          `<div>${g.date}: ${
+            g.type === 'none'
+              ? 'NO DATA'
+              : 'Missing ' + g.missing + ' intervals (got ' + g.got + ')'
+          } <button class="gap-detail" data-date="${g.date}">Details</button></div>`
+        );
+        outputEl.innerHTML = `
+          <h2>Data gaps (last 30 days)</h2>
+          <p>Checked ${fromStr} → ${toStr} (excluding today & yesterday).</p>
+          <p>Found ${gaps.length} day(s) with missing data:</p>
+          ${lines.join('')}
+          <div id="gapDetails" class="small" style="margin-top:0.75rem;"></div>
+        `;
+      }
+      showStatus('Gap check complete.');
     } catch (err) {
       console.error(err);
       showStatus('Error: ' + err.message);
@@ -785,183 +697,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const date = btn.dataset.date;
     showDayDetail(date);
   });
-
-  // --- Feature flag for GivEnergy section: URL param or localStorage ---
-  const geSection = document.getElementById('geSection');
-
-  function geIsEnabled() {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const flag = params.get('ge') || params.get('givenergy');
-
-      // If URL param present (e.g. ?ge=1), remember it for this device
-      if (flag) {
-        localStorage.setItem('ge_enabled', '1');
-        return true;
-      }
-
-      // Otherwise, fall back to whatever we previously stored
-      return localStorage.getItem('ge_enabled') === '1';
-    } catch (e) {
-      return false;
-    }
-  }
-
-  if (geSection && geIsEnabled()) {
-    geSection.style.display = 'block';
-  }
-
-  // === GivEnergy Octopus Go helper ===
-  const geSerialInput = document.getElementById('geSerial');
-  const geSaveBtn = document.getElementById('geSave');
-  const geResetBtn = document.getElementById('geReset');
-  const geStatusEl = document.getElementById('geStatus');
-  const geSlotsEl = document.getElementById('geSlots');
-  const PROXY_URL = "https://apirelay.sitetest.org.uk/givenergy-proxy.php";
-
-  function geShowStatus(msg, type = "") {
-    if (!geStatusEl) return;
-    geStatusEl.textContent = msg;
-    geStatusEl.className = "small" + (type ? " " + type : "");
-  }
-
-  function geLoadConfig() {
-    try {
-      const serial = localStorage.getItem('ge_inverter_serial') || "";
-      if (serial && geSerialInput) {
-        geSerialInput.value = serial;
-      }
-    } catch (e) {}
-  }
-
-  function geSaveConfig() {
-    if (!geSerialInput) return;
-    localStorage.setItem('ge_inverter_serial', geSerialInput.value.trim());
-    geShowStatus("GivEnergy inverter serial saved.", "ok");
-  }
-
-  function geNormaliseSlots(slots) {
-    if (!slots) return [];
-    if (Array.isArray(slots)) return slots;
-    const out = [];
-    Object.keys(slots).sort().forEach(k => out.push(slots[k]));
-    return out;
-  }
-
-  function geRenderSlots(timedCharge, timedExport) {
-    if (!geSlotsEl) return;
-    const chargeEnabled = timedCharge && timedCharge.enabled;
-    const chargeSlots = geNormaliseSlots(timedCharge && timedCharge.slots);
-    const exportEnabled = timedExport && timedExport.enabled;
-    const exportSlots = geNormaliseSlots(timedExport && timedExport.slots);
-
-    let html = "<strong>Current inverter slots</strong><br>";
-
-    if (!timedCharge && !timedExport) {
-      html += "<em>No data returned yet – check serial or relay.</em>";
-      geSlotsEl.innerHTML = html;
-      return;
-    }
-
-    html += "<br><strong>Timed Charge</strong> (" + (chargeEnabled ? "enabled" : "disabled") + "):<br>";
-    if (!chargeSlots.length) {
-      html += "<em>No charge slots configured.</em><br>";
-    } else {
-      chargeSlots.forEach((slot, idx) => {
-        const st = slot.start_time || "?";
-        const et = slot.end_time || "?";
-        const pl = (slot.percent_limit !== undefined && slot.percent_limit !== null)
-          ? slot.percent_limit + "%"
-          : "n/a";
-        html += "Slot " + idx + ": " + st + " → " + et + " (to " + pl + ")<br>";
-      });
-    }
-
-    html += "<br><strong>Timed Export</strong> (" + (exportEnabled ? "enabled" : "disabled") + "):<br>";
-    if (!exportSlots.length) {
-      html += "<em>No export slots configured.</em>";
-    } else {
-      exportSlots.forEach((slot, idx) => {
-        const st = slot.start_time || "?";
-        const et = slot.end_time || "?";
-        const pl = (slot.percent_limit !== undefined && slot.percent_limit !== null)
-          ? slot.percent_limit + "%"
-          : "n/a";
-        html += "Slot " + idx + ": " + st + " → " + et + " (down to " + pl + ")<br>";
-      });
-    }
-
-    geSlotsEl.innerHTML = html;
-  }
-
-  async function geLoadSlots() {
-    if (!geSerialInput) return;
-    const serial = geSerialInput.value.trim();
-    if (!serial) return;
-
-    try {
-      const res = await fetch(PROXY_URL + "?action=slots&serial=" + encodeURIComponent(serial));
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      const data = await res.json();
-      const timedCharge = data.timed_charge && data.timed_charge.data;
-      const timedExport = data.timed_export && data.timed_export.data;
-      geRenderSlots(timedCharge, timedExport);
-    } catch (err) {
-      console.error("GivEnergy slots error", err);
-      if (geSlotsEl) {
-        geSlotsEl.innerHTML = "<strong>Current inverter slots</strong><br><em>Could not load presets: " +
-          (err && err.message ? err.message : "Unknown error") + "</em>";
-      }
-    }
-  }
-
-  async function geResetGo() {
-    if (!geSerialInput) return;
-    const serial = geSerialInput.value.trim();
-    if (!serial) {
-      geShowStatus("Please enter GivEnergy inverter serial first.", "error");
-      return;
-    }
-
-    geSaveConfig();
-
-    geResetBtn.disabled = true;
-    geSaveBtn.disabled = true;
-    geShowStatus("Sending Timed Charge / Timed Export presets via relay…");
-
-    try {
-      const res = await fetch(PROXY_URL + "?action=reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serial })
-      });
-      if (!res.ok) throw new Error("HTTP " + res.status);
-      await res.json();
-      geShowStatus("Done! Timed Charge and Timed Export updated to Octopus Go slots.", "ok");
-      geLoadSlots();
-    } catch (err) {
-      console.error("GivEnergy reset error", err);
-      geShowStatus("Error: " + err.message, "error");
-    } finally {
-      geResetBtn.disabled = false;
-      geSaveBtn.disabled = false;
-    }
-  }
-
-  if (geSaveBtn) {
-    geSaveBtn.addEventListener("click", () => {
-      geSaveConfig();
-      geLoadSlots();
-    });
-  }
-  if (geResetBtn) {
-    geResetBtn.addEventListener("click", geResetGo);
-  }
-
-  geLoadConfig();
-  if (geSerialInput && geSerialInput.value.trim()) {
-    geLoadSlots();
-  }
 
   // Register SW (outside try/catch; ignore errors)
   if ('serviceWorker' in navigator) {
