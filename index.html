@@ -144,6 +144,18 @@
       <option value="P">P – North Scotland</option>
     </select>
 
+    <label>Go unit rates (p/kWh)</label>
+    <div class="grid-2">
+      <div>
+        <label for="goOffpeak" style="font-weight:500;">Off-peak (00:30–05:30)</label>
+        <input id="goOffpeak" type="number" step="0.01" inputmode="decimal" />
+      </div>
+      <div>
+        <label for="goPeak" style="font-weight:500;">Peak (rest of day)</label>
+        <input id="goPeak" type="number" step="0.01" inputmode="decimal" />
+      </div>
+    </div>
+
     <button id="run" class="primary">Compare today (Go vs Agile)</button>
     <button id="checkGaps" class="secondary">Check last 30 days for gaps</button>
     <div id="status" class="small"></div>
@@ -153,7 +165,7 @@
 
   <div class="card small">
     <strong>Notes</strong><br>
-    • All prices assume Octopus Go: 8.5p/kWh between 00:30–05:30, 31.42p/kWh otherwise.<br>
+    • Default Go prices: 8.5p/kWh between 00:30–05:30, 31.42p/kWh otherwise (customisable above).<br>
     • Agile product assumed: AGILE-24-10-01.<br>
     • Standing charges are ignored. This is a personal “what if” tool; API key is stored only in this browser (localStorage).
   </div>
@@ -163,13 +175,15 @@
 document.addEventListener('DOMContentLoaded', () => {
   const AGILE_PRODUCT_CODE = 'AGILE-24-10-01';
   const GRAPHQL_URL = 'https://api.octopus.energy/v1/graphql/';
-  const GO_OFFPEAK_P = 8.50;
-  const GO_PEAK_P = 31.42;
+  const GO_OFFPEAK_DEFAULT_P = 8.50;
+  const GO_PEAK_DEFAULT_P = 31.42;
 
   const apiKeyInput = document.getElementById('apiKey');
   const accountInput = document.getElementById('accountNumber');
   const deviceInput = document.getElementById('deviceId');
   const dnoSelect = document.getElementById('dno');
+  const goOffpeakInput = document.getElementById('goOffpeak');
+  const goPeakInput = document.getElementById('goPeak');
   const discoverBtn = document.getElementById('discoverDevice');
   const runBtn = document.getElementById('run');
   const checkGapsBtn = document.getElementById('checkGaps');
@@ -180,6 +194,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const deviceMetaById = {}; // deviceId -> { mpan, serial }
   let lastDayIndex = null;   // dateKey -> [interval_start strings]
 
+  function getGoRates() {
+    let off = GO_OFFPEAK_DEFAULT_P;
+    let peak = GO_PEAK_DEFAULT_P;
+
+    if (goOffpeakInput) {
+      const v = parseFloat(goOffpeakInput.value);
+      if (Number.isFinite(v)) off = v;
+    }
+    if (goPeakInput) {
+      const v = parseFloat(goPeakInput.value);
+      if (Number.isFinite(v)) peak = v;
+    }
+
+    return { off, peak };
+  }
+
   // Load saved config
   (function loadConfig() {
     try {
@@ -188,7 +218,26 @@ document.addEventListener('DOMContentLoaded', () => {
       if (cfg.accountNumber) accountInput.value = cfg.accountNumber;
       if (cfg.deviceId) deviceInput.value = cfg.deviceId;
       if (cfg.dno) dnoSelect.value = cfg.dno;
-    } catch (e) {}
+
+      if (goOffpeakInput) {
+        if (cfg.goOffpeak != null) {
+          goOffpeakInput.value = cfg.goOffpeak;
+        } else {
+          goOffpeakInput.value = GO_OFFPEAK_DEFAULT_P;
+        }
+      }
+
+      if (goPeakInput) {
+        if (cfg.goPeak != null) {
+          goPeakInput.value = cfg.goPeak;
+        } else {
+          goPeakInput.value = GO_PEAK_DEFAULT_P;
+        }
+      }
+    } catch (e) {
+      if (goOffpeakInput) goOffpeakInput.value = GO_OFFPEAK_DEFAULT_P;
+      if (goPeakInput) goPeakInput.value = GO_PEAK_DEFAULT_P;
+    }
   })();
 
   function saveConfig() {
@@ -198,6 +247,16 @@ document.addEventListener('DOMContentLoaded', () => {
       deviceId: deviceInput.value.trim(),
       dno: dnoSelect.value
     };
+
+    if (goOffpeakInput) {
+      const v = parseFloat(goOffpeakInput.value);
+      if (Number.isFinite(v)) cfg.goOffpeak = v;
+    }
+    if (goPeakInput) {
+      const v = parseFloat(goPeakInput.value);
+      if (Number.isFinite(v)) cfg.goPeak = v;
+    }
+
     localStorage.setItem('octopusTariffConfig', JSON.stringify(cfg));
   }
 
@@ -452,7 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     return gaps;
   }
 
-  function calculateComparison(telemetryRows, agileLookup) {
+  function calculateComparison(telemetryRows, agileLookup, goOffpeakP, goPeakP) {
     let totalActualP = 0;
     let totalGoP = 0;
     let totalAgileP = 0;
@@ -475,7 +534,7 @@ document.addEventListener('DOMContentLoaded', () => {
         (hour === 0 && minute >= 30) ||
         (hour === 5 && minute === 0);
 
-      const goRateP = isOffPeak ? GO_OFFPEAK_P : GO_PEAK_P;
+      const goRateP = isOffPeak ? goOffpeakP : goPeakP;
       const goCostP = kWh * goRateP;
 
       const utcIso = date.toISOString().replace('.000Z', 'Z');
@@ -496,53 +555,50 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
- function showDayDetail(dateKey) {
-  if (!lastDayIndex) return;
-  const intervals = (lastDayIndex[dateKey] || []).slice().sort();
-  const gapDetailsEl = outputEl.querySelector('#gapDetails');
-  if (!gapDetailsEl) return;
+  function showDayDetail(dateKey) {
+    if (!lastDayIndex) return;
+    const intervals = (lastDayIndex[dateKey] || []).slice().sort();
+    const gapDetailsEl = outputEl.querySelector('#gapDetails');
+    if (!gapDetailsEl) return;
 
-  if (!intervals.length) {
-    gapDetailsEl.textContent = `No data at all for ${dateKey}.`;
-    return;
-  }
-
-  // Infer offset suffix from the first interval, e.g. "+01:00" or "Z"
-  const first = intervals[0];
-  let offset = 'Z';
-  const m = first.match(/([+-]\d{2}:\d{2}|Z)$/);
-  if (m) offset = m[1];
-
-  // Build expected local-time interval strings for that date with the same offset
-  const expected = [];
-  let hour = 0, minute = 0;
-  for (let i = 0; i < 48; i++) {
-    const hh = String(hour).padStart(2, '0');
-    const mm = String(minute).padStart(2, '0');
-    expected.push(`${dateKey}T${hh}:${mm}:00${offset}`);
-    minute += 30;
-    if (minute === 60) {
-      minute = 0;
-      hour += 1;
+    if (!intervals.length) {
+      gapDetailsEl.textContent = `No data at all for ${dateKey}.`;
+      return;
     }
+
+    const first = intervals[0];
+    let offset = 'Z';
+    const m = first.match(/([+-]\d{2}:\d{2}|Z)$/);
+    if (m) offset = m[1];
+
+    const expected = [];
+    let hour = 0, minute = 0;
+    for (let i = 0; i < 48; i++) {
+      const hh = String(hour).padStart(2, '0');
+      const mm = String(minute).padStart(2, '0');
+      expected.push(`${dateKey}T${hh}:${mm}:00${offset}`);
+      minute += 30;
+      if (minute === 60) {
+        minute = 0;
+        hour += 1;
+      }
+    }
+
+    const haveSet = new Set(intervals);
+
+    const missing = expected.filter(s => !haveSet.has(s));
+
+    const detailsText =
+      `Details for ${dateKey} (local time ${offset})\n\n` +
+      `Present intervals (${intervals.length}):\n` +
+      (intervals.length ? intervals.join('\n') : 'None') +
+      `\n\nExpected intervals (${expected.length}):\n` +
+      expected.join('\n') +
+      `\n\nMissing intervals (${missing.length}):\n` +
+      (missing.length ? missing.join('\n') : 'None');
+
+    gapDetailsEl.textContent = detailsText;
   }
-
-  const haveSet = new Set(intervals);
-
-  const missing = expected.filter(s => !haveSet.has(s));
-
-  const detailsText =
-    `Details for ${dateKey} (local time ${offset})\n\n` +
-    `Present intervals (${intervals.length}):\n` +
-    (intervals.length ? intervals.join('\n') : 'None') +
-    `\n\nExpected intervals (${expected.length}):\n` +
-    expected.join('\n') +
-    `\n\nMissing intervals (${missing.length}):\n` +
-    (missing.length ? missing.join('\n') : 'None');
-
-  gapDetailsEl.textContent = detailsText;
-}
-
 
   discoverBtn.addEventListener('click', async () => {
     try {
@@ -580,6 +636,8 @@ document.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      const { off: goOffpeakP, peak: goPeakP } = getGoRates();
+
       runBtn.disabled = true;
       outputEl.innerHTML = '';
       showStatus('Getting token, usage & prices...');
@@ -594,7 +652,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       const { kWh, actualGBP, goGBP, agileGBP } =
-        calculateComparison(telemetry, agileLookup);
+        calculateComparison(telemetry, agileLookup, goOffpeakP, goPeakP);
 
       let winnerLabel = 'Your current tariff';
       const min = Math.min(actualGBP, goGBP, agileGBP);
@@ -611,7 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <p>Energy used today: <span class="highlight">${kWh.toFixed(3)} kWh</span></p>
         <ul>
           <li>Actual: £${actualGBP.toFixed(2)}</li>
-          <li>Go (8.5p 00:30–05:30, 31.42p rest): £${goGBP.toFixed(2)}</li>
+          <li>Go (${goOffpeakP.toFixed(2)}p 00:30–05:30, ${goPeakP.toFixed(2)}p rest): £${goGBP.toFixed(2)}</li>
           <li>Agile (${AGILE_PRODUCT_CODE}, region ${dno}): £${agileGBP.toFixed(2)}</li>
         </ul>
         <p><strong>Cheapest today: ${winnerLabel}</strong></p>
